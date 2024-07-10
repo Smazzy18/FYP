@@ -13,8 +13,8 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback_secret_key')
 db = SQLAlchemy(app)
 
 # Gmail configuration for sending OTPs
-GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'your_gmail@gmail.com')
-GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'your_gmail_password')
+GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
+GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'ndnb dzjc jqpw zawu')
 
 class Device(db.Model):
     id = db.Column(db.Integer, primary_key=True)
