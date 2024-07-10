@@ -1,7 +1,8 @@
+import os
+import logging
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-import os
 import uuid
 import random
 import smtplib
@@ -10,9 +11,16 @@ from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///devices.db')
+if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
+    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace("postgres://", "postgresql://", 1)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback_secret_key')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
+# Setup logging
+logging.basicConfig(level=logging.DEBUG)
 
 # Gmail configuration for sending OTPs
 GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
@@ -42,7 +50,7 @@ def send_otp_email(to_email, otp):
         server.quit()
         return True
     except Exception as e:
-        print(f"Error sending email: {str(e)}")
+        app.logger.error(f"Error sending email: {str(e)}")
         return False
 
 @app.route('/', methods=['GET', 'POST'])
@@ -111,5 +119,16 @@ def register():
     
     return render_template('register.html')
 
+@app.errorhandler(500)
+def internal_error(error):
+    app.logger.error('An error occurred', exc_info=True)
+    return "An internal error occurred", 500
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return "Page not found", 404
+
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
