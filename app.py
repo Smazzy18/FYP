@@ -19,16 +19,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# Setup logging
 logging.basicConfig(level=logging.DEBUG)
 
-# Gmail configuration for sending OTPs
-GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
-GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'ndnb dzjc jqpw zawu')
+GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'your_gmail@gmail.com')
+GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'your_gmail_password')
 
 class Device(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(50), nullable=False)
+    user_id = db.Column(db.String(50), nullable=False, unique=True)
     email = db.Column(db.String(120), nullable=False)
     mac_address = db.Column(db.String(17), unique=True, nullable=False)
     ip_address = db.Column(db.String(15), nullable=False)
@@ -69,7 +67,7 @@ def login():
             else:
                 flash('Error sending OTP. Please try again.')
         else:
-            flash('Access denied: User ID not found')
+            flash('Invalid ID')
 
     return render_template('login.html')
 
@@ -82,8 +80,8 @@ def verify_otp():
         user_otp = request.form['otp']
         if user_otp == session['otp']:
             session.pop('otp', None)
-            session.pop('user_id', None)
             flash('Access granted')
+            return redirect(url_for('login'))
         else:
             flash('OTP does not match. Access denied.')
 
@@ -97,25 +95,16 @@ def register():
         mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
         ip_address = request.remote_addr
         
-        existing_devices = Device.query.filter_by(user_id=user_id).all()
+        existing_device = Device.query.filter_by(user_id=user_id).first()
+        if existing_device:
+            flash('User ID already exists')
+            return redirect(url_for('register'))
         
-        if not existing_devices:
-            new_device = Device(user_id=user_id, email=email, mac_address=mac_address, ip_address=ip_address)
-            db.session.add(new_device)
-            db.session.commit()
-            flash('First device registered successfully.')
-        elif len(existing_devices) == 1:
-            if existing_devices[0].email == email:
-                new_device = Device(user_id=user_id, email=email, mac_address=mac_address, ip_address=ip_address)
-                db.session.add(new_device)
-                db.session.commit()
-                flash('Second device registered successfully.')
-            else:
-                flash('Email does not match registered device.')
-        else:
-            flash('Maximum devices already registered for this ID.')
-        
-        return redirect(url_for('register'))
+        new_device = Device(user_id=user_id, email=email, mac_address=mac_address, ip_address=ip_address)
+        db.session.add(new_device)
+        db.session.commit()
+        flash('Registration successful. Please login.')
+        return redirect(url_for('login'))
     
     return render_template('register.html')
 
