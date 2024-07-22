@@ -8,12 +8,14 @@ import random
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from sqlalchemy import inspect
+from datetime import datetime
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///devices.db')
 if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
     app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace("postgres://", "postgresql://", 1)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback_secret_key')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', '122382989200018AEF922')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -21,15 +23,28 @@ migrate = Migrate(app, db)
 
 logging.basicConfig(level=logging.DEBUG)
 
-GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'your_gmail@gmail.com')
-GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'your_gmail_password')
+GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
+GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
 class Device(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(50), nullable=False, unique=True)
+    user_id = db.Column(db.String(50), nullable=False)
     email = db.Column(db.String(120), nullable=False)
-    mac_address = db.Column(db.String(17), unique=True, nullable=False)
+    mac_address = db.Column(db.String(17), nullable=False)
     ip_address = db.Column(db.String(15), nullable=False)
+
+class Attendance(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(50), db.ForeignKey('device.user_id'), nullable=False)
+    check_in_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+def check_database_status():
+    try:
+        inspector = inspect(db.engine)
+        tables = inspector.get_table_names()
+        app.logger.info(f"Database connection successful. Tables: {tables}")
+    except Exception as e:
+        app.logger.error(f"Database connection failed: {str(e)}")
 
 def send_otp_email(to_email, otp):
     msg = MIMEMultipart()
@@ -53,69 +68,147 @@ def send_otp_email(to_email, otp):
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
+    check_database_status()
     if request.method == 'POST':
         user_id = request.form['id']
         device = Device.query.filter_by(user_id=user_id).first()
         if device:
-            otp = str(random.randint(100000, 999999))
-            session['otp'] = otp
             session['user_id'] = user_id
-            
-            if send_otp_email(device.email, otp):
-                flash(f'OTP sent to your registered email: {device.email}')
-                return redirect(url_for('verify_otp'))
-            else:
-                flash('Error sending OTP. Please try again.')
+            return redirect(url_for('verify_otp'))
         else:
-            flash('Invalid ID')
+            flash("Invalid ID. Please register the device first.", "error")
 
     return render_template('login.html')
 
 @app.route('/verify_otp', methods=['GET', 'POST'])
 def verify_otp():
-    if 'otp' not in session:
+    check_database_status()
+    if 'user_id' not in session:
+        flash("Please login first.", "error")
         return redirect(url_for('login'))
+
+    user_id = session['user_id']
+    device = Device.query.filter_by(user_id=user_id).first()
+
+    if request.method == 'GET':
+        if device.ip_address == request.remote_addr:
+            otp = str(random.randint(100000, 999999))
+            session['otp'] = otp
+            if send_otp_email(device.email, otp):
+                flash("OTP sent to your email. Please verify.", "success")
+            else:
+                flash("Error sending OTP. Please try again.", "error")
+        else:
+            flash("Access denied. IP address does not match.", "error")
+            return redirect(url_for('login'))
 
     if request.method == 'POST':
         user_otp = request.form['otp']
-        if user_otp == session['otp']:
+        if user_otp == session.get('otp'):
             session.pop('otp', None)
-            flash('Access granted')
-            return redirect(url_for('login'))
+            flash("Access granted. Welcome!", "success")
+            return redirect(url_for('dashboard'))
         else:
-            flash('OTP does not match. Access denied.')
+            flash("OTP does not match. Access denied.", "error")
 
     return render_template('verify_otp.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    check_database_status()
     if request.method == 'POST':
         user_id = request.form['id']
         email = request.form['email']
         mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
         ip_address = request.remote_addr
         
-        existing_device = Device.query.filter_by(user_id=user_id).first()
+        existing_device = Device.query.filter_by(mac_address=mac_address).first()
         if existing_device:
-            flash('User ID already exists')
+            flash("Device already registered", "error")
             return redirect(url_for('register'))
         
-        new_device = Device(user_id=user_id, email=email, mac_address=mac_address, ip_address=ip_address)
-        db.session.add(new_device)
-        db.session.commit()
-        flash('Registration successful. Please login.')
-        return redirect(url_for('login'))
+        existing_devices = Device.query.filter_by(user_id=user_id).all()
+        if len(existing_devices) >= 2:
+            flash("Device limit has been reached.", "error")
+        else:
+            try:
+                new_device = Device(user_id=user_id, email=email, mac_address=mac_address, ip_address=ip_address)
+                db.session.add(new_device)
+                db.session.commit()
+                flash("Device registered successfully.", "success")
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Error during registration: {str(e)}")
+                flash("An error occurred during registration. Please try again.", "error")
     
     return render_template('register.html')
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        flash("Please login first.", "error")
+        return redirect(url_for('login'))
+    
+    user_id = session['user_id']
+    device = Device.query.filter_by(user_id=user_id).first()
+    
+    if not device:
+        flash("Device not found.", "error")
+        return redirect(url_for('login'))
+    
+    return render_template('dashboard.html', user_id=user_id, email=device.email)
+
+@app.route('/mark_attendance', methods=['POST'])
+def mark_attendance():
+    if 'user_id' not in session:
+        flash("Please login first.", "error")
+        return redirect(url_for('login'))
+    
+    user_id = session['user_id']
+    device = Device.query.filter_by(user_id=user_id).first()
+    
+    if not device:
+        flash("Device not found.", "error")
+        return redirect(url_for('login'))
+    
+    # Check if attendance already marked for today
+    today = datetime.utcnow().date()
+    existing_attendance = Attendance.query.filter(
+        Attendance.user_id == user_id,
+        db.func.date(Attendance.check_in_time) == today
+    ).first()
+    
+    if existing_attendance:
+        flash("Attendance already marked for today.", "info")
+    else:
+        new_attendance = Attendance(user_id=user_id)
+        db.session.add(new_attendance)
+        db.session.commit()
+        flash("Attendance marked successfully.", "success")
+    
+    return redirect(url_for('dashboard'))
+
+@app.route('/attendance_history')
+def attendance_history():
+    if 'user_id' not in session:
+        flash("Please login first.", "error")
+        return redirect(url_for('login'))
+    
+    user_id = session['user_id']
+    attendances = Attendance.query.filter_by(user_id=user_id).order_by(Attendance.check_in_time.desc()).all()
+    
+    return render_template('attendance_history.html', attendances=attendances)
 
 @app.errorhandler(500)
 def internal_error(error):
     app.logger.error('An error occurred', exc_info=True)
-    return "An internal error occurred", 500
+    flash("An internal error occurred. Please try again later.", "error")
+    return render_template('error.html'), 500
 
 @app.errorhandler(404)
 def not_found_error(error):
-    return "Page not found", 404
+    flash("Page not found.", "error")
+    return render_template('error.html'), 404
 
 if __name__ == '__main__':
     with app.app_context():

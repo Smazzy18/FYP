@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="user-agent" content="CustomBrowser/1.0">
     <title>Verify OTP</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
+            background-color: #4a90e2;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -16,67 +15,74 @@
             margin: 0;
         }
         .otp-container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            background-color: #4a90e2;
+            padding: 30px;
+            border-radius: 8px;
+            text-align: left;
+            width: 300px;
         }
         h1 {
-            text-align: center;
-            color: #333;
-        }
-        form {
-            display: flex;
-            flex-direction: column;
+            color: white;
+            margin-bottom: 20px;
+            font-size: 36px;
         }
         input {
-            margin: 10px 0;
+            display: block;
+            width: 100%;
             padding: 10px;
-            border: 1px solid #ddd;
+            margin: 10px 0;
+            border: none;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .flash-message {
+            color: white;
+            margin-top: 10px;
+            padding: 10px;
             border-radius: 4px;
         }
-        button {
-            background-color: #17a2b8;
+        .success {
+            background-color: rgba(0, 255, 0, 0.1);
+        }
+        .error {
+            background-color: rgba(255, 0, 0, 0.1);
+        }
+        label {
             color: white;
+            display: block;
+            margin-bottom: 5px;
+        }
+        button {
+            background-color: white;
+            color: #4a90e2;
             border: none;
             padding: 10px;
             border-radius: 4px;
             cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            width: 100%;
         }
         button:hover {
-            background-color: #138496;
-        }
-        .flash-message {
-            background-color: #cce5ff;
-            border-color: #b8daff;
-            color: #004085;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid transparent;
-            border-radius: 4px;
+            background-color: #f0f0f0;
         }
     </style>
-    <script>
-    fetch(window.location.href, {
-      headers: {
-        'bypass-tunnel-reminder': 'true'
-      }
-    }).then(response => response.text())
-      .then(html => document.documentElement.innerHTML = html);
-    </script>
 </head>
 <body>
     <div class="otp-container">
         <h1>Verify OTP</h1>
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                {% for message in messages %}
-                    <div class="flash-message">{{ message }}</div>
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">
+                        {{ message }}
+                    </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
         <form method="POST">
-            <input type="text" name="otp" placeholder="Enter OTP" required>
+            <label for="otp">Enter OTP</label>
+            <input type="text" id="otp" name="otp" required>
             <button type="submit">Verify OTP</button>
         </form>
     </div>

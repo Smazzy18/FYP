@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance History</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .history-container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            width: 300px;
+        }
+        h1 {
+            color: #1877f2;
+            margin-bottom: 1.5rem;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            background-color: #f0f2f5;
+            border-radius: 4px;
+        }
+        .link-button {
+            display: block;
+            width: 100%;
+            padding: 0.5rem;
+            margin-top: 1rem;
+            border: none;
+            border-radius: 4px;
+            background-color: #1877f2;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .link-button:hover {
+            background-color: #166fe5;
+        }
+    </style>
+</head>
+<body>
+    <div class="history-container">
+        <h1>Attendance History</h1>
+        <ul>
+        {% for attendance in attendances %}
+            <li>{{ attendance.check_in_time.strftime('%Y-%m-%d %H:%M:%S') }}</li>
+        {% endfor %}
+        </ul>
+        <a href="{{ url_for('dashboard') }}" class="link-button">Back to Dashboard</a>
+    </div>
+</body>
+</html>
