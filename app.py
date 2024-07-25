@@ -11,15 +11,46 @@ from email.mime.multipart import MIMEMultipart
 from sqlalchemy import inspect
 from datetime import datetime
 
+import os
+import logging
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+import uuid
+import random
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from sqlalchemy import inspect
+from datetime import datetime
+import urllib.parse
+
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///devices.db')
-if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
-    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace("postgres://", "postgresql://", 1)
+
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    
+    # Parse the URL to get the database name
+    parsed_url = urllib.parse.urlparse(database_url)
+    db_name = parsed_url.path[1:]  # Remove the leading '/'
+    
+    # Construct the internal connection URL
+    internal_host = f"{db_name}.internal"
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"postgresql://{parsed_url.username}:{parsed_url.password}@{internal_host}:5432/{db_name}"
+else:
+    # Local development, use SQLite
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///devices.db'
+
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', '122382989200018AEF922')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -30,7 +61,7 @@ class Device(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.String(50), nullable=False)
     email = db.Column(db.String(120), nullable=False)
-    mac_address = db.Column(db.String(17), nullable=False, unique=True)
+    mac_address = db.Column(db.String(17), nullable=False)
     ip_address = db.Column(db.String(15), nullable=False)
 
 class Attendance(db.Model):
@@ -122,32 +153,24 @@ def register():
         mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
         ip_address = request.remote_addr
         
-        # Check if this specific device (MAC address) is already registered
         existing_device = Device.query.filter_by(mac_address=mac_address).first()
         if existing_device:
-            flash("This device is already registered.", "error")
+            flash("Device already registered", "error")
             return redirect(url_for('register'))
         
-        # Check how many devices this user has registered
         existing_devices = Device.query.filter_by(user_id=user_id).all()
         if len(existing_devices) >= 2:
-            flash("You have reached the limit of 2 devices per user.", "error")
-            return redirect(url_for('register'))
-        
-        # If this is the second device, ensure the email matches the first device
-        if len(existing_devices) == 1 and existing_devices[0].email != email:
-            flash("Email must match the email used for your first device.", "error")
-            return redirect(url_for('register'))
-        
-        try:
-            new_device = Device(user_id=user_id, email=email, mac_address=mac_address, ip_address=ip_address)
-            db.session.add(new_device)
-            db.session.commit()
-            flash("Device registered successfully.", "success")
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"Error during registration: {str(e)}")
-            flash("An error occurred during registration. Please try again.", "error")
+            flash("Device limit has been reached.", "error")
+        else:
+            try:
+                new_device = Device(user_id=user_id, email=email, mac_address=mac_address, ip_address=ip_address)
+                db.session.add(new_device)
+                db.session.commit()
+                flash("Device registered successfully.", "success")
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Error during registration: {str(e)}")
+                flash("An error occurred during registration. Please try again.", "error")
     
     return render_template('register.html')
 
