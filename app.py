@@ -10,19 +10,6 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from sqlalchemy import inspect
 from datetime import datetime
-
-import os
-import logging
-from flask import Flask, render_template, request, redirect, url_for, session, flash
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-import uuid
-import random
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from sqlalchemy import inspect
-from datetime import datetime
 import urllib.parse
 
 app = Flask(__name__)
