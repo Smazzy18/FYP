@@ -10,24 +10,14 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from sqlalchemy import inspect
 from datetime import datetime
-import urllib.parse
 
 app = Flask(__name__)
 
-database_url = os.environ.get('DATABASE_URL')
-if database_url:
-
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-    
-    # Parse the URL to get the database name
-    parsed_url = urllib.parse.urlparse(database_url)
-    db_name = parsed_url.path[1:]  # Remove the leading '/'
-    
-    # Construct the internal connection URL
-    internal_host = f"{db_name}.internal"
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"postgresql://{parsed_url.username}:{parsed_url.password}@{internal_host}:5432/{db_name}"
+# Database configuration
+if 'DATABASE_URL' in os.environ:
+    # Running on Render, use PostgreSQL
+    render_db_url = os.environ.get('DATABASE_URL')
+    app.config['SQLALCHEMY_DATABASE_URI'] = render_db_url.replace('postgres://', 'postgresql://')
 else:
     # Local development, use SQLite
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///devices.db'
@@ -38,8 +28,11 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-
 logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+logger.debug(f"Database URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
+logger.debug("Attempting to connect to the database...")
 
 GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
 GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
@@ -60,9 +53,9 @@ def check_database_status():
     try:
         inspector = inspect(db.engine)
         tables = inspector.get_table_names()
-        app.logger.info(f"Database connection successful. Tables: {tables}")
+        logger.info(f"Database connection successful. Tables: {tables}")
     except Exception as e:
-        app.logger.error(f"Database connection failed: {str(e)}")
+        logger.error(f"Database connection failed: {str(e)}")
 
 def send_otp_email(to_email, otp):
     msg = MIMEMultipart()
@@ -81,7 +74,7 @@ def send_otp_email(to_email, otp):
         server.quit()
         return True
     except Exception as e:
-        app.logger.error(f"Error sending email: {str(e)}")
+        logger.error(f"Error sending email: {str(e)}")
         return False
 
 @app.route('/', methods=['GET', 'POST'])
@@ -156,7 +149,7 @@ def register():
                 flash("Device registered successfully.", "success")
             except Exception as e:
                 db.session.rollback()
-                app.logger.error(f"Error during registration: {str(e)}")
+                logger.error(f"Error during registration: {str(e)}")
                 flash("An error occurred during registration. Please try again.", "error")
     
     return render_template('register.html')
@@ -219,7 +212,7 @@ def attendance_history():
 
 @app.errorhandler(500)
 def internal_error(error):
-    app.logger.error('An error occurred', exc_info=True)
+    logger.error('An error occurred', exc_info=True)
     flash("An internal error occurred. Please try again later.", "error")
     return render_template('error.html'), 500
 
