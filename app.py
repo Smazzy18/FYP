@@ -16,8 +16,9 @@ app = Flask(__name__)
 # Database configuration
 if 'DATABASE_URL' in os.environ:
     # Running on Render, use PostgreSQL
-    render_db_url = os.environ.get('DATABASE_URL')
-    app.config['SQLALCHEMY_DATABASE_URI'] = render_db_url.replace('postgres://', 'postgresql://')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
+    if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
+        app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace("postgres://", "postgresql://", 1)
 else:
     # Local development, use SQLite
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///devices.db'
