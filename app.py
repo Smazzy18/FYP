@@ -40,7 +40,7 @@ GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
 class Device(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(50), nullable=False)
+    user_id = db.Column(db.String(50), nullable=False, unique=True)
     email = db.Column(db.String(120), nullable=False)
     mac_address = db.Column(db.String(17), nullable=False, unique=True)
     ip_address = db.Column(db.String(15), nullable=False)
@@ -225,4 +225,4 @@ def not_found_error(error):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
