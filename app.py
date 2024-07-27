@@ -15,12 +15,10 @@ app = Flask(__name__)
 
 # Database configuration
 if 'DATABASE_URL' in os.environ:
-    # Running on Render, use PostgreSQL
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
     if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
         app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace("postgres://", "postgresql://", 1)
 else:
-    # Local development, use SQLite
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///devices.db'
 
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', '122382989200018AEF922')
@@ -40,7 +38,7 @@ GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
 class Device(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(50), nullable=False, unique=True)
+    user_id = db.Column(db.String(50), nullable=False)
     email = db.Column(db.String(120), nullable=False)
     mac_address = db.Column(db.String(17), nullable=False, unique=True)
     ip_address = db.Column(db.String(15), nullable=False)
@@ -134,24 +132,32 @@ def register():
         mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
         ip_address = request.remote_addr
         
+        # Check if this specific device (MAC address) is already registered
         existing_device = Device.query.filter_by(mac_address=mac_address).first()
         if existing_device:
-            flash("Device already registered", "error")
+            flash("Device has already been registered", "error")
             return redirect(url_for('register'))
         
+        # Check how many devices are registered with this user_id
         existing_devices = Device.query.filter_by(user_id=user_id).all()
         if len(existing_devices) >= 2:
-            flash("Device limit has been reached.", "error")
-        else:
-            try:
-                new_device = Device(user_id=user_id, email=email, mac_address=mac_address, ip_address=ip_address)
-                db.session.add(new_device)
-                db.session.commit()
-                flash("Device registered successfully.", "success")
-            except Exception as e:
-                db.session.rollback()
-                logger.error(f"Error during registration: {str(e)}")
-                flash("An error occurred during registration. Please try again.", "error")
+            flash("Device limit reached. You can only register up to two devices per ID.", "error")
+            return redirect(url_for('register'))
+        
+        # If this is the second device, ensure the email matches the first device
+        if len(existing_devices) == 1 and existing_devices[0].email != email:
+            flash("Email must match the email used for your first device.", "error")
+            return redirect(url_for('register'))
+        
+        try:
+            new_device = Device(user_id=user_id, email=email, mac_address=mac_address, ip_address=ip_address)
+            db.session.add(new_device)
+            db.session.commit()
+            flash("Device registered successfully.", "success")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error during registration: {str(e)}")
+            flash("An error occurred during registration. Please try again.", "error")
     
     return render_template('register.html')
 
