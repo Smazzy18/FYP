@@ -27,6 +27,9 @@ logger.debug("Attempting to connect to the database...")
 GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
 GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
+# Define the allowed IP address
+ALLOWED_IP = os.environ.get('ALLOWED_IP', '192.168.68.103')
+
 def check_database_status():
     try:
         mongo.db.command('ping')
@@ -124,8 +127,25 @@ def login():
         user_id = request.form['id']
         device = mongo.db.devices.find_one({'user_id': user_id})
         if device:
-            session['user_id'] = user_id
-            return redirect(url_for('verify_otp'))
+            # Check if the request is coming from Render
+            x_forwarded_for = request.headers.get('X-Forwarded-For')
+            if x_forwarded_for:
+                # If it's coming from Render, use the first IP in X-Forwarded-For
+                client_ip = x_forwarded_for.split(',')[0].strip()
+            else:
+                # If not, use the regular remote_addr
+                client_ip = request.remote_addr
+            
+            logger.debug(f"Client IP: {client_ip}")
+            logger.debug(f"Allowed IP: {ALLOWED_IP}")
+            
+            if client_ip == ALLOWED_IP:
+                session['user_id'] = user_id
+                return redirect(url_for('verify_otp'))
+            else:
+                flash("Access denied. IP address does not match.", "error")
+                logger.warning(f"Login attempt from unauthorized IP: {client_ip}")
+                return render_template('login.html')
         else:
             flash("Invalid ID. Please register the device first.", "error")
 
@@ -142,16 +162,12 @@ def verify_otp():
     device = mongo.db.devices.find_one({'user_id': user_id})
 
     if request.method == 'GET':
-        if device['ip_address'] == request.remote_addr:
-            otp = str(random.randint(100000, 999999))
-            session['otp'] = otp
-            if send_otp_email(device['email'], otp):
-                flash("OTP sent to your email. Please verify.", "success")
-            else:
-                flash("Error sending OTP. Please try again.", "error")
+        otp = str(random.randint(100000, 999999))
+        session['otp'] = otp
+        if send_otp_email(device['email'], otp):
+            flash("OTP sent to your email. Please verify.", "success")
         else:
-            flash("Access denied. IP address does not match.", "error")
-            return redirect(url_for('login'))
+            flash("Error sending OTP. Please try again.", "error")
 
     if request.method == 'POST':
         user_otp = request.form['otp']
