@@ -127,6 +127,13 @@ def login():
         user_id = request.form['id']
         device = mongo.db.devices.find_one({'user_id': user_id})
         if device:
+            # Get the current device's MAC address
+            current_mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
+            
+            if current_mac != device['mac_address']:
+                flash("Device does not match ID.", "error")
+                return render_template('login.html')
+            
             # Check if the request is coming from Render
             x_forwarded_for = request.headers.get('X-Forwarded-For')
             if x_forwarded_for:
