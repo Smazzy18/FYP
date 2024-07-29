@@ -8,12 +8,13 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
+import certifi
 
 app = Flask(__name__)
 
 # MongoDB configuration
 app.config['MONGO_URI'] = os.environ.get('MONGODB_URI', 'mongodb+srv://jonathan09748:W3hfCGztVaOjcw3h@fyp2cluster.wjspyde.mongodb.net/devicedb?retryWrites=true&w=majority&appName=FYP2Cluster')
-mongo = PyMongo(app)
+mongo = PyMongo(app, tlsCAFile=certifi.where())
 
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', '122382989200018AEF922')
 
@@ -202,6 +203,7 @@ def register():
 
 @app.route('/dashboard')
 def dashboard():
+    logger.debug(f"Session data: {session}")
     if 'user_id' not in session:
         flash("Please login first.", "error")
         return redirect(url_for('login'))
@@ -217,31 +219,58 @@ def dashboard():
 
 @app.route('/mark_attendance', methods=['POST'])
 def mark_attendance():
+    logger.debug("Entering mark_attendance function")
+    check_database_status()
     if 'user_id' not in session:
+        logger.warning("User not in session")
         flash("Please login first.", "error")
         return redirect(url_for('login'))
     
     user_id = session['user_id']
-    device = mongo.db.devices.find_one({'user_id': user_id})
+    logger.debug(f"User ID: {user_id}")
+    
+    try:
+        device = mongo.db.devices.find_one({'user_id': user_id})
+        logger.debug(f"Device found: {device}")
+    except Exception as e:
+        logger.error(f"Error finding device: {str(e)}")
+        flash("An error occurred. Please try again.", "error")
+        return redirect(url_for('dashboard'))
     
     if not device:
+        logger.warning("Device not found")
         flash("Device not found.", "error")
         return redirect(url_for('login'))
     
-    today = datetime.utcnow().date()
-    existing_attendance = mongo.db.attendance.find_one({
-        'user_id': user_id,
-        'check_in_time': {'$gte': today, '$lt': today + timedelta(days=1)}
-    })
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow = today + timedelta(days=1)
+    logger.debug(f"Today's date: {today}")
+    
+    try:
+        existing_attendance = mongo.db.attendance.find_one({
+            'user_id': user_id,
+            'check_in_time': {'$gte': today, '$lt': tomorrow}
+        })
+        logger.debug(f"Existing attendance: {existing_attendance}")
+    except Exception as e:
+        logger.error(f"Error checking existing attendance: {str(e)}")
+        flash("An error occurred. Please try again.", "error")
+        return redirect(url_for('dashboard'))
     
     if existing_attendance:
+        logger.info("Attendance already marked")
         flash("Attendance already marked for today.", "info")
     else:
-        mongo.db.attendance.insert_one({
-            'user_id': user_id,
-            'check_in_time': datetime.utcnow()
-        })
-        flash("Attendance marked successfully.", "success")
+        try:
+            mongo.db.attendance.insert_one({
+                'user_id': user_id,
+                'check_in_time': datetime.utcnow()
+            })
+            logger.info("Attendance marked successfully")
+            flash("Attendance marked successfully.", "success")
+        except Exception as e:
+            logger.error(f"Error marking attendance: {str(e)}")
+            flash("An error occurred while marking attendance. Please try again.", "error")
     
     return redirect(url_for('dashboard'))
 
@@ -270,6 +299,11 @@ def not_found_error(error):
 def create_app():
     with app.app_context():
         check_database_status()
+        # Ensure collections exist
+        if 'devices' not in mongo.db.list_collection_names():
+            mongo.db.create_collection('devices')
+        if 'attendance' not in mongo.db.list_collection_names():
+            mongo.db.create_collection('attendance')
         # Check if data already exists in both collections
         if mongo.db.devices.count_documents({}) == 0 or mongo.db.attendance.count_documents({}) == 0:
             insert_mock_data()
