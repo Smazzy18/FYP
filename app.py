@@ -267,7 +267,7 @@ def not_found_error(error):
     flash("Page not found.", "error")
     return render_template('error.html'), 404
 
-if __name__ == '__main__':
+def create_app():
     with app.app_context():
         check_database_status()
         # Check if data already exists in both collections
@@ -276,4 +276,7 @@ if __name__ == '__main__':
             logger.info("Mock data inserted.")
         else:
             logger.info("Existing data found. Skipping mock data insertion.")
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    return app
+
+if __name__ == '__main__':
+    create_app().run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
