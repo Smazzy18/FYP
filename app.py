@@ -95,7 +95,6 @@ def insert_mock_data():
         }
     ]
 
-    # Insert data into MongoDB
     mongo.db.devices.insert_many(devices)
     mongo.db.attendance.insert_many(attendances)
 
