@@ -27,8 +27,8 @@ logger.debug("Attempting to connect to the database...")
 GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
 GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
-# Define the allowed IP address
-ALLOWED_IP = os.environ.get('ALLOWED_IP', '192.168.68.103')
+# Define the allowed IP addresses
+ALLOWED_IPS = os.environ.get('ALLOWED_IPS', '192.168.68.103').split(',')
 
 def check_database_status():
     try:
@@ -137,13 +137,13 @@ def login():
                 client_ip = request.remote_addr
             
             logger.debug(f"Client IP: {client_ip}")
-            logger.debug(f"Allowed IP: {ALLOWED_IP}")
+            logger.debug(f"Allowed IPs: {ALLOWED_IPS}")
             
-            if client_ip == ALLOWED_IP:
+            if client_ip in ALLOWED_IPS:
                 session['user_id'] = user_id
                 return redirect(url_for('verify_otp'))
             else:
-                flash("Access denied. IP address does not match.", "error")
+                flash("Access denied. IP address not allowed.", "error")
                 logger.warning(f"Login attempt from unauthorized IP: {client_ip}")
                 return render_template('login.html')
         else:
