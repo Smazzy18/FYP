@@ -8,32 +8,27 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
-import certifi
-import ssl
 
 app = Flask(__name__)
 
-# Logging configuration
+# MongoDB configuration
+app.config['MONGO_URI'] = os.environ.get('MONGODB_URI', 'mongodb+srv://jonathan09748:W3hfCGztVaOjcw3h@fyp2cluster.wjspyde.mongodb.net/devicedb?retryWrites=true&w=majority&appName=FYP2Cluster')
+mongo = PyMongo(app)
+
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', '122382989200018AEF922')
+
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# MongoDB configuration
-mongo_uri = os.environ.get('MONGODB_URI', 'mongodb+srv://jonathan09748:W3hfCGztVaOjcw3h@fyp2cluster.wjspyde.mongodb.net/devicedb?retryWrites=true&w=majority&appName=FYP2Cluster')
-app.config['MONGO_URI'] = mongo_uri
-logger.debug(f"MongoDB URI: {mongo_uri}")
+logger.debug(f"MongoDB URI: {app.config['MONGO_URI']}")
+logger.debug("Attempting to connect to the database...")
 
-# Create a MongoDB client with SSL configuration
-mongo = PyMongo(app, tlsCAFile=certifi.where())
-
-# Other configurations
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', '122382989200018AEF922')
 GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
 GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
 def check_database_status():
     try:
-        # The ismaster command is cheap and does not require auth.
-        mongo.db.command('ismaster')
+        mongo.db.command('ping')
         logger.info("Database connection successful.")
     except Exception as e:
         logger.error(f"Database connection failed: {str(e)}")
@@ -95,6 +90,7 @@ def insert_mock_data():
         }
     ]
 
+    # Insert data into MongoDB
     mongo.db.devices.insert_many(devices)
     mongo.db.attendance.insert_many(attendances)
 
@@ -271,7 +267,7 @@ def not_found_error(error):
     flash("Page not found.", "error")
     return render_template('error.html'), 404
 
-def create_app():
+if __name__ == '__main__':
     with app.app_context():
         check_database_status()
         # Check if data already exists in both collections
@@ -280,7 +276,4 @@ def create_app():
             logger.info("Mock data inserted.")
         else:
             logger.info("Existing data found. Skipping mock data insertion.")
-    return app
-
-if __name__ == '__main__':
-    create_app().run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
