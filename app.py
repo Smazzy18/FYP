@@ -26,7 +26,7 @@ logger.debug("Attempting to connect to the database...")
 GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
 GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
-ALLOWED_IP = os.environ.get('ALLOWED_IP', '192.168.68.100')
+ALLOWED_IP = os.environ.get('ALLOWED_IP', '192.168.68.102')
 
 def check_database_status():
     try:
