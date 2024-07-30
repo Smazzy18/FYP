@@ -26,7 +26,7 @@ logger.debug("Attempting to connect to the database...")
 GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
 GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
-ALLOWED_IP = "192.168.68.100"
+ALLOWED_IP = os.environ.get('ALLOWED_IP', '192.168.68.100')
 
 def check_database_status():
     try:
@@ -56,12 +56,13 @@ def send_otp_email(to_email, otp):
         return False
 
 def get_client_ip():
-    if request.headers.getlist("X-Forwarded-For"):
-        return request.headers.getlist("X-Forwarded-For")[0].split(',')[0]
+    if request.headers.get('X-Forwarded-For'):
+        return request.headers.get('X-Forwarded-For').split(',')[0]
     return request.remote_addr
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
+    logger.debug(f"Full request headers: {request.headers}")
     check_database_status()
     if request.method == 'POST':
         user_id = request.form['id']
