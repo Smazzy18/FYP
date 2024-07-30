@@ -28,7 +28,7 @@ GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
 GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
 # Define the allowed IP addresses
-ALLOWED_IPS = os.environ.get('ALLOWED_IPS', '192.168.1.100').split(',')
+ALLOWED_IPS = os.environ.get('ALLOWED_IPS', '58.71.197.166,192.168.1.100').split(',')
 
 def check_database_status():
     try:
@@ -134,23 +134,21 @@ def login():
                 flash("Device does not match ID.", "error")
                 return render_template('login.html')
             
-            # Check if the request is coming from Render
-            x_forwarded_for = request.headers.get('X-Forwarded-For')
-            if x_forwarded_for:
-                # If it's coming from Render, use the first IP in X-Forwarded-For
-                client_ip = x_forwarded_for.split(',')[0].strip()
-            else:
-                # If not, use the regular remote_addr
-                client_ip = request.remote_addr
+            # Check client IP
+            client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+            if isinstance(client_ip, str):
+                client_ip = client_ip.split(',')[0].strip()
             
+            logger.debug(f"Request headers: {request.headers}")
+            logger.debug(f"Remote addr: {request.remote_addr}")
             logger.debug(f"Client IP: {client_ip}")
             logger.debug(f"Allowed IPs: {ALLOWED_IPS}")
             
-            if client_ip in ALLOWED_IPS:
+            if client_ip in ALLOWED_IPS or any(client_ip.startswith(allowed_ip) for allowed_ip in ALLOWED_IPS):
                 session['user_id'] = user_id
                 return redirect(url_for('verify_otp'))
             else:
-                flash("Access denied. IP address not allowed.", "error")
+                flash(f"Access denied. IP address not allowed: {client_ip}", "error")
                 logger.warning(f"Login attempt from unauthorized IP: {client_ip}")
                 return render_template('login.html')
         else:
