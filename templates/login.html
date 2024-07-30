@@ -3,105 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="user-agent" content="CustomBrowser/1.0">
     <title>Login</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #4a90e2;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
+            background-color: #4A90E2;
         }
         .login-container {
-            background-color: #4a90e2;
-            padding: 20px;
+            background-color: transparent;
+            padding: 2em;
+            text-align: center;
+            color: white;
             width: 300px;
         }
-        h1 {
-            text-align: left;
-            color: white;
-            font-size: 36px;
-            margin-bottom: 20px;
-        }
-        form {
-            display: flex;
-            flex-direction: column;
-        }
-        label {
-            color: white;
-            margin-bottom: 5px;
-        }
-        input {
-            margin: 5px 0 15px;
+        input[type="text"] {
+            width: 100%;
             padding: 10px;
+            margin: 10px 0;
             border: none;
-            border-radius: 4px;
+            border-radius: 5px;
+            box-sizing: border-box;
         }
         button {
-            background-color: white;
-            color: #4a90e2;
-            border: none;
+            width: 100%;
             padding: 10px;
-            border-radius: 4px;
+            background-color: white;
+            color: #4A90E2;
+            border: none;
+            border-radius: 5px;
             cursor: pointer;
-            font-weight: bold;
             margin-top: 10px;
-        }
-        button:hover {
-            background-color: #f0f0f0;
+            font-weight: bold;
         }
         .register-link {
+            display: inline-block;
+            margin-top: 15px;
             color: white;
             text-decoration: none;
-            font-size: 14px;
-            margin-top: 20px;
-            display: block;
+            font-size: 0.9em;
+            border-bottom: 1px solid transparent;
+            transition: border-bottom 0.3s ease;
         }
         .register-link:hover {
-            text-decoration: underline;
+            border-bottom: 1px solid white;
         }
         .flash-message {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: white;
             padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 4px;
-        }
-        .success {
-            background-color: rgba(0, 255, 0, 0.1);
-        }
-        .error {
-            background-color: rgba(255, 0, 0, 0.1);
+            margin: 10px 0;
+            border-radius: 5px;
+            text-align: left;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
         }
     </style>
-    <script>
-    fetch(window.location.href, {
-      headers: {
-        'bypass-tunnel-reminder': 'true'
-      }
-    }).then(response => response.text())
-      .then(html => document.documentElement.innerHTML = html);
-    </script>
 </head>
 <body>
     <div class="login-container">
         <h1>Login</h1>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="flash-message {{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+        
+        <!-- Flash message container -->
+        <div id="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
         <form method="POST">
-            <label for="id">ID</label>
-            <input type="text" id="id" name="id" required>
+            <input type="text" name="id" placeholder="ID" required>
             <button type="submit">Login</button>
         </form>
+
         <a href="{{ url_for('register') }}" class="register-link">Haven't register your device? Register here</a>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var flashMessages = document.querySelectorAll('.flash-message');
+            flashMessages.forEach(function(message) {
+                message.style.display = 'block';
+                setTimeout(function() {
+                    message.style.opacity = '1';
+                    var fadeEffect = setInterval(function() {
+                        if (message.style.opacity > 0) {
+                            message.style.opacity -= 0.1;
+                        } else {
+                            clearInterval(fadeEffect);
+                            message.style.display = 'none';
+                        }
+                    }, 50);
+                }, 5000);
+            });
+        });
+    </script>
 </body>
 </html>
