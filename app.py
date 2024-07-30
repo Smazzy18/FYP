@@ -2,7 +2,6 @@ import os
 import logging
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_pymongo import PyMongo
-import uuid
 import random
 import smtplib
 from email.mime.text import MIMEText
@@ -27,8 +26,7 @@ logger.debug("Attempting to connect to the database...")
 GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
 GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
-# Define the allowed IP addresses
-ALLOWED_IPS = os.environ.get('ALLOWED_IPS', '58.71.197.166,192.168.1.100').split(',')
+ALLOWED_IP = "192.168.68.100"
 
 def check_database_status():
     try:
@@ -36,69 +34,6 @@ def check_database_status():
         logger.info("Database connection successful.")
     except Exception as e:
         logger.error(f"Database connection failed: {str(e)}")
-
-def insert_mock_data():
-    # Clear existing data
-    mongo.db.devices.delete_many({})
-    mongo.db.attendance.delete_many({})
-
-    # Insert mock data for devices
-    devices = [
-        {
-            "user_id": "STU001",
-            "email": "student1@example.com",
-            "mac_address": "00:1A:2B:3C:4D:5E",
-            "ip_address": "192.168.1.100"
-        },
-        {
-            "user_id": "STU002",
-            "email": "student2@example.com",
-            "mac_address": "AA:BB:CC:DD:EE:FF",
-            "ip_address": "192.168.1.101"
-        },
-        {
-            "user_id": "STU003",
-            "email": "student3@example.com",
-            "mac_address": "11:22:33:44:55:66",
-            "ip_address": "192.168.1.102"
-        },
-        {
-            "user_id": "STU001",
-            "email": "student1@example.com",
-            "mac_address": "77:88:99:AA:BB:CC",
-            "ip_address": "192.168.1.103"
-        }
-    ]
-
-    # Insert mock data for attendance
-    attendances = [
-        {
-            "user_id": "STU001",
-            "check_in_time": datetime(2024, 3, 10, 9, 0, 0)
-        },
-        {
-            "user_id": "STU002",
-            "check_in_time": datetime(2024, 3, 10, 9, 5, 0)
-        },
-        {
-            "user_id": "STU003",
-            "check_in_time": datetime(2024, 3, 10, 8, 55, 0)
-        },
-        {
-            "user_id": "STU001",
-            "check_in_time": datetime(2024, 3, 11, 9, 2, 0)
-        },
-        {
-            "user_id": "STU002",
-            "check_in_time": datetime(2024, 3, 11, 9, 10, 0)
-        }
-    ]
-
-    # Insert data into MongoDB
-    mongo.db.devices.insert_many(devices)
-    mongo.db.attendance.insert_many(attendances)
-
-    logger.info("Mock data inserted successfully.")
 
 def send_otp_email(to_email, otp):
     msg = MIMEMultipart()
@@ -120,6 +55,11 @@ def send_otp_email(to_email, otp):
         logger.error(f"Error sending email: {str(e)}")
         return False
 
+def get_client_ip():
+    if request.headers.getlist("X-Forwarded-For"):
+        return request.headers.getlist("X-Forwarded-For")[0].split(',')[0]
+    return request.remote_addr
+
 @app.route('/', methods=['GET', 'POST'])
 def login():
     check_database_status()
@@ -127,30 +67,16 @@ def login():
         user_id = request.form['id']
         device = mongo.db.devices.find_one({'user_id': user_id})
         if device:
-            # Get the current device's MAC address
-            current_mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
-            
-            if current_mac != device['mac_address']:
-                flash("Device does not match ID.", "error")
-                return render_template('login.html')
-            
-            # Check client IP
-            client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-            if isinstance(client_ip, str):
-                client_ip = client_ip.split(',')[0].strip()
-            
-            logger.debug(f"Request headers: {request.headers}")
-            logger.debug(f"Remote addr: {request.remote_addr}")
+            client_ip = get_client_ip()
             logger.debug(f"Client IP: {client_ip}")
-            logger.debug(f"Allowed IPs: {ALLOWED_IPS}")
+            logger.debug(f"Allowed IP: {ALLOWED_IP}")
             
-            if client_ip in ALLOWED_IPS or any(client_ip.startswith(allowed_ip) for allowed_ip in ALLOWED_IPS):
+            if client_ip == ALLOWED_IP:
                 session['user_id'] = user_id
                 return redirect(url_for('verify_otp'))
             else:
                 flash(f"Access denied. IP address not allowed: {client_ip}", "error")
                 logger.warning(f"Login attempt from unauthorized IP: {client_ip}")
-                return render_template('login.html')
         else:
             flash("Invalid ID. Please register the device first.", "error")
 
@@ -158,7 +84,6 @@ def login():
 
 @app.route('/verify_otp', methods=['GET', 'POST'])
 def verify_otp():
-    check_database_status()
     if 'user_id' not in session:
         flash("Please login first.", "error")
         return redirect(url_for('login'))
@@ -187,32 +112,20 @@ def verify_otp():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    check_database_status()
     if request.method == 'POST':
         user_id = request.form['id']
         email = request.form['email']
-        mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
-        ip_address = request.remote_addr
+        ip_address = get_client_ip()
         
-        existing_device = mongo.db.devices.find_one({'mac_address': mac_address})
+        existing_device = mongo.db.devices.find_one({'user_id': user_id})
         if existing_device:
-            flash("Device has already been registered", "error")
-            return redirect(url_for('register'))
-        
-        existing_devices = list(mongo.db.devices.find({'user_id': user_id}))
-        if len(existing_devices) >= 2:
-            flash("Device limit reached. You can only register up to two devices per ID.", "error")
-            return redirect(url_for('register'))
-        
-        if len(existing_devices) == 1 and existing_devices[0]['email'] != email:
-            flash("Email must match the email used for your first device.", "error")
+            flash("User ID has already been registered", "error")
             return redirect(url_for('register'))
         
         try:
             mongo.db.devices.insert_one({
                 'user_id': user_id,
                 'email': email,
-                'mac_address': mac_address,
                 'ip_address': ip_address
             })
             flash("Device registered successfully.", "success")
@@ -224,7 +137,6 @@ def register():
 
 @app.route('/dashboard')
 def dashboard():
-    logger.debug(f"Session data: {session}")
     if 'user_id' not in session:
         flash("Please login first.", "error")
         return redirect(url_for('login'))
@@ -240,58 +152,28 @@ def dashboard():
 
 @app.route('/mark_attendance', methods=['POST'])
 def mark_attendance():
-    logger.debug("Entering mark_attendance function")
-    check_database_status()
     if 'user_id' not in session:
-        logger.warning("User not in session")
         flash("Please login first.", "error")
         return redirect(url_for('login'))
     
     user_id = session['user_id']
-    logger.debug(f"User ID: {user_id}")
-    
-    try:
-        device = mongo.db.devices.find_one({'user_id': user_id})
-        logger.debug(f"Device found: {device}")
-    except Exception as e:
-        logger.error(f"Error finding device: {str(e)}")
-        flash("An error occurred. Please try again.", "error")
-        return redirect(url_for('dashboard'))
-    
-    if not device:
-        logger.warning("Device not found")
-        flash("Device not found.", "error")
-        return redirect(url_for('login'))
     
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     tomorrow = today + timedelta(days=1)
-    logger.debug(f"Today's date: {today}")
     
-    try:
-        existing_attendance = mongo.db.attendance.find_one({
-            'user_id': user_id,
-            'check_in_time': {'$gte': today, '$lt': tomorrow}
-        })
-        logger.debug(f"Existing attendance: {existing_attendance}")
-    except Exception as e:
-        logger.error(f"Error checking existing attendance: {str(e)}")
-        flash("An error occurred. Please try again.", "error")
-        return redirect(url_for('dashboard'))
+    existing_attendance = mongo.db.attendance.find_one({
+        'user_id': user_id,
+        'check_in_time': {'$gte': today, '$lt': tomorrow}
+    })
     
     if existing_attendance:
-        logger.info("Attendance already marked")
         flash("Attendance already marked for today.", "info")
     else:
-        try:
-            mongo.db.attendance.insert_one({
-                'user_id': user_id,
-                'check_in_time': datetime.utcnow()
-            })
-            logger.info("Attendance marked successfully")
-            flash("Attendance marked successfully.", "success")
-        except Exception as e:
-            logger.error(f"Error marking attendance: {str(e)}")
-            flash("An error occurred while marking attendance. Please try again.", "error")
+        mongo.db.attendance.insert_one({
+            'user_id': user_id,
+            'check_in_time': datetime.utcnow()
+        })
+        flash("Attendance marked successfully.", "success")
     
     return redirect(url_for('dashboard'))
 
@@ -317,21 +199,5 @@ def not_found_error(error):
     flash("Page not found.", "error")
     return render_template('error.html'), 404
 
-def create_app():
-    with app.app_context():
-        check_database_status()
-        # Ensure collections exist
-        if 'devices' not in mongo.db.list_collection_names():
-            mongo.db.create_collection('devices')
-        if 'attendance' not in mongo.db.list_collection_names():
-            mongo.db.create_collection('attendance')
-        # Check if data already exists in both collections
-        if mongo.db.devices.count_documents({}) == 0 or mongo.db.attendance.count_documents({}) == 0:
-            insert_mock_data()
-            logger.info("Mock data inserted.")
-        else:
-            logger.info("Existing data found. Skipping mock data insertion.")
-    return app
-
 if __name__ == '__main__':
-    create_app().run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
