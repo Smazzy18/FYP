@@ -28,7 +28,7 @@ GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
 GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
 # Define the allowed IP addresses
-ALLOWED_IPS = os.environ.get('ALLOWED_IPS', '192.168.68.100').split(',')
+ALLOWED_IPS = os.environ.get('ALLOWED_IPS', '192.168.1.100').split(',')
 
 def check_database_status():
     try:
