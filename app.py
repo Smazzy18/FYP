@@ -28,7 +28,7 @@ GMAIL_ADDRESS = os.environ.get('GMAIL_ADDRESS', 'jonathan097869@gmail.com')
 GMAIL_PASSWORD = os.environ.get('GMAIL_PASSWORD', 'cype xwru nytj xsmm')
 
 # Define the allowed IP addresses
-ALLOWED_IPS = os.environ.get('ALLOWED_IPS', '192.168.68.100','192.168.68.101', '192.168.68.102', '192.168.68.103').split(',')
+ALLOWED_IPS = os.environ.get('ALLOWED_IPS', '58.71.197.20,192.168.68.100,192.168.68.101,192.168.68.102,192.168.68.103').split(',')
 
 def check_database_status():
     try:
@@ -196,16 +196,19 @@ def register():
         mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
         ip_address = request.remote_addr
         
+        # Check if this MAC address is already registered
         existing_device = mongo.db.devices.find_one({'mac_address': mac_address})
         if existing_device:
-            flash("Device has already been registered", "error")
+            flash("This device has already been registered", "error")
             return redirect(url_for('register'))
         
+        # Check how many devices are registered with this user_id
         existing_devices = list(mongo.db.devices.find({'user_id': user_id}))
         if len(existing_devices) >= 2:
             flash("Device limit reached. You can only register up to two devices per ID.", "error")
             return redirect(url_for('register'))
         
+        # If this is the second device, ensure the email matches the first device
         if len(existing_devices) == 1 and existing_devices[0]['email'] != email:
             flash("Email must match the email used for your first device.", "error")
             return redirect(url_for('register'))
@@ -223,6 +226,7 @@ def register():
             flash("An error occurred during registration. Please try again.", "error")
     
     return render_template('register.html')
+        
 
 @app.route('/dashboard')
 def dashboard():
