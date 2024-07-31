@@ -9,7 +9,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 import certifi
-
+import re
 
 app = Flask(__name__)
 
@@ -121,6 +121,11 @@ def send_otp_email(to_email, otp):
         logger.error(f"Error sending email: {str(e)}")
         return False
 
+def get_mac_address():
+    mac_num = hex(uuid.getnode()).replace('0x', '').upper()
+    mac = ':'.join(mac_num[i: i + 2] for i in range(0, 11, 2))
+    return mac
+
 @app.route('/', methods=['GET', 'POST'])
 def login():
     check_database_status()
@@ -129,7 +134,7 @@ def login():
         device = mongo.db.devices.find_one({'user_id': user_id})
         if device:
             # Get the current device's MAC address
-            current_mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
+            current_mac = get_mac_address()
             
             if current_mac != device['mac_address']:
                 flash("Device does not match ID.", "error")
@@ -194,8 +199,13 @@ def register():
     if request.method == 'POST':
         user_id = request.form['id']
         email = request.form['email']
-        mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
+        mac_address = get_mac_address()
         ip_address = request.remote_addr
+        
+        # Validate MAC address format
+        if not re.match("[0-9A-F]{2}(:[0-9A-F]{2}){5}$", mac_address):
+            flash("Unable to obtain a valid MAC address. Please try a different device or browser.", "error")
+            return redirect(url_for('register'))
         
         # Check if this MAC address is already registered
         existing_device = mongo.db.devices.find_one({'mac_address': mac_address})
@@ -227,7 +237,6 @@ def register():
             flash("An error occurred during registration. Please try again.", "error")
     
     return render_template('register.html')
-        
 
 @app.route('/dashboard')
 def dashboard():
