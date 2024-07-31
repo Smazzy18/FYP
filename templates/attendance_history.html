@@ -54,6 +54,12 @@
             background-color: #166fe5;
         }
     </style>
+    <script src="{{ url_for('static', filename='device_id.js') }}"></script>
+    <script>
+        window.onload = function() {
+            setDeviceId();
+        }
+    </script>
 </head>
 <body>
     <div class="history-container">

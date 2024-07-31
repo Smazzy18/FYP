@@ -77,6 +77,12 @@
             background-color: #f0f0f0;
         }
     </style>
+    <script src="{{ url_for('static', filename='device_id.js') }}"></script>
+    <script>
+        window.onload = function() {
+            setDeviceId();
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -95,7 +101,8 @@
             <input type="text" id="id" name="id" required>
             <label for="email">Email</label>
             <input type="email" id="email" name="email" required>
-            <button type="submit">Register Device</button>
+            <input type="hidden" id="device_id" name="device_id">
+            <button type="submit" onclick="document.getElementById('device_id').value = getDeviceId();">Register Device</button>
         </form>
         <a href="{{ url_for('login') }}" class="login-link">Already registered your device? Login here</a>
     </div>

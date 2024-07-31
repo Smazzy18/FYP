@@ -67,6 +67,12 @@
             background-color: #f0f0f0;
         }
     </style>
+    <script src="{{ url_for('static', filename='device_id.js') }}"></script>
+    <script>
+        window.onload = function() {
+            setDeviceId();
+        }
+    </script>
 </head>
 <body>
     <div class="otp-container">
@@ -83,7 +89,8 @@
         <form method="POST">
             <label for="otp">Enter OTP</label>
             <input type="text" id="otp" name="otp" required>
-            <button type="submit">Verify OTP</button>
+            <input type="hidden" id="device_id" name="device_id">
+            <button type="submit" onclick="document.getElementById('device_id').value = getDeviceId();">Verify OTP</button>
         </form>
     </div>
 </body>

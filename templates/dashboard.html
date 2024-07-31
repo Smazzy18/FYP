@@ -52,6 +52,12 @@
             background-color: #166fe5;
         }
     </style>
+    <script src="{{ url_for('static', filename='device_id.js') }}"></script>
+    <script>
+        window.onload = function() {
+            setDeviceId();
+        }
+    </script>
 </head>
 <body>
     <div class="dashboard-container">
@@ -69,7 +75,8 @@
         <p>Email: {{ email }}</p>
         
         <form action="{{ url_for('mark_attendance') }}" method="post">
-            <button type="submit">Mark Attendance</button>
+            <input type="hidden" id="device_id" name="device_id">
+            <button type="submit" onclick="document.getElementById('device_id').value = getDeviceId();">Mark Attendance</button>
         </form>
         
         <a href="{{ url_for('attendance_history') }}" class="link-button">View Attendance History</a>
