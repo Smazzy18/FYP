@@ -1,20 +1,17 @@
 import os
 import logging
-from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_pymongo import PyMongo
-from flask_fingerprint import Fingerprint
+import uuid
 import random
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 import certifi
-import hashlib
-import uuid
+
 
 app = Flask(__name__)
-fingerprint = Fingerprint()
-fingerprint.init_app(app)
 
 # MongoDB configuration
 app.config['MONGO_URI'] = os.environ.get('MONGODB_URI', 'mongodb+srv://jonathan09748:W3hfCGztVaOjcw3h@fyp2cluster.wjspyde.mongodb.net/devicedb?retryWrites=true&w=majority&appName=FYP2Cluster')
@@ -51,34 +48,26 @@ def insert_mock_data():
         {
             "user_id": "STU001",
             "email": "student1@example.com",
-            "device_id": "hash1",
             "mac_address": "00:1A:2B:3C:4D:5E",
-            "ip_address": "192.168.1.100",
-            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "ip_address": "192.168.1.100"
         },
         {
             "user_id": "STU002",
             "email": "student2@example.com",
-            "device_id": "hash2",
             "mac_address": "AA:BB:CC:DD:EE:FF",
-            "ip_address": "192.168.1.101",
-            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15"
+            "ip_address": "192.168.1.101"
         },
         {
             "user_id": "STU003",
             "email": "student3@example.com",
-            "device_id": "hash3",
             "mac_address": "11:22:33:44:55:66",
-            "ip_address": "192.168.1.102",
-            "user_agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) Gecko/20100101 Firefox/89.0"
+            "ip_address": "192.168.1.102"
         },
         {
             "user_id": "STU001",
             "email": "student1@example.com",
-            "device_id": "hash4",
             "mac_address": "77:88:99:AA:BB:CC",
-            "ip_address": "192.168.1.103",
-            "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Mobile/15E148 Safari/604.1"
+            "ip_address": "192.168.1.103"
         }
     ]
 
@@ -132,20 +121,6 @@ def send_otp_email(to_email, otp):
         logger.error(f"Error sending email: {str(e)}")
         return False
 
-def get_mac_address():
-    try:
-        mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
-        return mac
-    except:
-        return "Unknown"
-
-def generate_device_id():
-    user_agent = request.user_agent.string
-    ip_address = request.remote_addr
-    fp = fingerprint.fingerprint()  # This is the correct way to get the fingerprint
-    device_info = f"{user_agent}|{ip_address}|{fp}"
-    return hashlib.md5(device_info.encode()).hexdigest()
-
 @app.route('/', methods=['GET', 'POST'])
 def login():
     check_database_status()
@@ -153,14 +128,10 @@ def login():
         user_id = request.form['id']
         device = mongo.db.devices.find_one({'user_id': user_id})
         if device:
-            device_id = request.cookies.get('device_id') or generate_device_id()
-            mac_address = get_mac_address()
+            # Get the current device's MAC address
+            current_mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
             
-            logger.debug(f"Login attempt - User ID: {user_id}, Device ID: {device_id}, MAC: {mac_address}")
-            logger.debug(f"Stored device - ID: {device['device_id']}, MAC: {device['mac_address']}")
-            
-            if device_id != device['device_id']:
-                logger.warning(f"Device mismatch - User ID: {user_id}, Current ID: {device_id}, Stored ID: {device['device_id']}")
+            if current_mac != device['mac_address']:
                 flash("Device does not match ID.", "error")
                 return render_template('login.html')
             
@@ -186,10 +157,7 @@ def login():
         else:
             flash("Invalid ID. Please register the device first.", "error")
 
-    response = make_response(render_template('login.html'))
-    if 'device_id' not in request.cookies:
-        response.set_cookie('device_id', generate_device_id(), max_age=30*24*60*60)  # 30 days
-    return response
+    return render_template('login.html')
 
 @app.route('/verify_otp', methods=['GET', 'POST'])
 def verify_otp():
@@ -226,16 +194,12 @@ def register():
     if request.method == 'POST':
         user_id = request.form['id']
         email = request.form['email']
+        mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
+        ip_address = request.remote_addr
         
-        device_id = generate_device_id()
-        mac_address = get_mac_address()
-        
-        logger.debug(f"Registering device - User ID: {user_id}, Email: {email}, Device ID: {device_id}, MAC: {mac_address}")
-        
-        # Check if this device ID is already registered
-        existing_device = mongo.db.devices.find_one({'device_id': device_id})
+        # Check if this MAC address is already registered
+        existing_device = mongo.db.devices.find_one({'mac_address': mac_address})
         if existing_device:
-            logger.warning(f"Attempt to register existing device - User ID: {user_id}, Device ID: {device_id}")
             flash("This device has already been registered", "error")
             return redirect(url_for('register'))
         
@@ -254,20 +218,16 @@ def register():
             mongo.db.devices.insert_one({
                 'user_id': user_id,
                 'email': email,
-                'device_id': device_id,
                 'mac_address': mac_address,
-                'ip_address': request.remote_addr,
-                'user_agent': request.user_agent.string
+                'ip_address': ip_address
             })
             flash("Device registered successfully.", "success")
-            response = make_response(redirect(url_for('login')))
-            response.set_cookie('device_id', device_id, max_age=30*24*60*60)  # 30 days
-            return response
         except Exception as e:
             logger.error(f"Error during registration: {str(e)}")
             flash("An error occurred during registration. Please try again.", "error")
     
     return render_template('register.html')
+        
 
 @app.route('/dashboard')
 def dashboard():
@@ -353,12 +313,6 @@ def attendance_history():
     
     return render_template('attendance_history.html', attendances=attendances)
 
-@app.route('/check_device')
-def check_device():
-    device_id = request.cookies.get('device_id') or generate_device_id()
-    mac_address = get_mac_address()
-    return f"Device ID: {device_id}<br>MAC Address: {mac_address}"
-
 @app.errorhandler(500)
 def internal_error(error):
     logger.error('An error occurred', exc_info=True)
@@ -372,7 +326,6 @@ def not_found_error(error):
 
 def create_app():
     with app.app_context():
-        fingerprint.init_app(app)  # Initialize fingerprint
         check_database_status()
         # Ensure collections exist
         if 'devices' not in mongo.db.list_collection_names():
