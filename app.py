@@ -2,7 +2,6 @@ import os
 import logging
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_pymongo import PyMongo
-import uuid
 import random
 import smtplib
 from email.mime.text import MIMEText
@@ -10,6 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 import certifi
 import hashlib
+import uuid
 
 app = Flask(__name__)
 
@@ -48,26 +48,34 @@ def insert_mock_data():
         {
             "user_id": "STU001",
             "email": "student1@example.com",
+            "device_hash": "hash1",
             "mac_address": "00:1A:2B:3C:4D:5E",
-            "ip_address": "192.168.1.100"
+            "ip_address": "192.168.1.100",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         },
         {
             "user_id": "STU002",
             "email": "student2@example.com",
+            "device_hash": "hash2",
             "mac_address": "AA:BB:CC:DD:EE:FF",
-            "ip_address": "192.168.1.101"
+            "ip_address": "192.168.1.101",
+            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15"
         },
         {
             "user_id": "STU003",
             "email": "student3@example.com",
+            "device_hash": "hash3",
             "mac_address": "11:22:33:44:55:66",
-            "ip_address": "192.168.1.102"
+            "ip_address": "192.168.1.102",
+            "user_agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) Gecko/20100101 Firefox/89.0"
         },
         {
             "user_id": "STU001",
             "email": "student1@example.com",
+            "device_hash": "hash4",
             "mac_address": "77:88:99:AA:BB:CC",
-            "ip_address": "192.168.1.103"
+            "ip_address": "192.168.1.103",
+            "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Mobile/15E148 Safari/604.1"
         }
     ]
 
@@ -128,10 +136,11 @@ def login():
         user_id = request.form['id']
         device = mongo.db.devices.find_one({'user_id': user_id})
         if device:
-            # Get the current device's MAC address
+            # Get the current device's hash and MAC address
+            current_device_hash = hashlib.md5(f"{request.user_agent.string}|{request.remote_addr}".encode()).hexdigest()
             current_mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
             
-            if current_mac != device['mac_address']:
+            if current_device_hash != device['device_hash'] or current_mac != device['mac_address']:
                 flash("Device does not match ID.", "error")
                 return render_template('login.html')
             
@@ -188,8 +197,53 @@ def verify_otp():
 
     return render_template('verify_otp.html')
 
-
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    check_database_status()
+    if request.method == 'POST':
+        user_id = request.form['id']
+        email = request.form['email']
         
+        # Create a unique device identifier
+        user_agent = request.user_agent.string
+        ip_address = request.remote_addr
+        device_info = f"{user_agent}|{ip_address}"
+        device_hash = hashlib.md5(device_info.encode()).hexdigest()
+        mac_address = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
+        
+        # Check if this device hash or MAC address is already registered
+        existing_device = mongo.db.devices.find_one({'$or': [{'device_hash': device_hash}, {'mac_address': mac_address}]})
+        if existing_device:
+            flash("This device has already been registered", "error")
+            return redirect(url_for('register'))
+        
+        # Check how many devices are registered with this user_id
+        existing_devices = list(mongo.db.devices.find({'user_id': user_id}))
+        if len(existing_devices) >= 2:
+            flash("Device limit reached. You can only register up to two devices per ID.", "error")
+            return redirect(url_for('register'))
+        
+        # If this is the second device, ensure the email matches the first device
+        if len(existing_devices) == 1 and existing_devices[0]['email'] != email:
+            flash("Email must match the email used for your first device.", "error")
+            return redirect(url_for('register'))
+        
+        try:
+            mongo.db.devices.insert_one({
+                'user_id': user_id,
+                'email': email,
+                'device_hash': device_hash,
+                'mac_address': mac_address,
+                'ip_address': ip_address,
+                'user_agent': user_agent
+            })
+            flash("Device registered successfully.", "success")
+            return redirect(url_for('login'))
+        except Exception as e:
+            logger.error(f"Error during registration: {str(e)}")
+            flash("An error occurred during registration. Please try again.", "error")
+    
+    return render_template('register.html')
 
 @app.route('/dashboard')
 def dashboard():
