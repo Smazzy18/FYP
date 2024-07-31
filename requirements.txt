@@ -7,7 +7,6 @@ colorama==0.4.6
 Django==5.0.6
 Flask==3.0.3
 Flask-Mail==0.10.0
-Flask-Fingerprint==0.1.0
 greenlet==3.0.3
 gunicorn==22.0.0
 idna==3.7
@@ -33,3 +32,4 @@ Werkzeug==3.0.3
 dnspython==2.4.2
 flask-pymongo==2.3.0
 pymongo[srv]==4.6.1
+flask-fingerprint==0.1.0
