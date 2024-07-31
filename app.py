@@ -142,7 +142,7 @@ def get_mac_address():
 def generate_device_id():
     user_agent = request.user_agent.string
     ip_address = request.remote_addr
-    fp = fingerprint.get()
+    fp = fingerprint.fingerprint()  # This is the correct way to get the fingerprint
     device_info = f"{user_agent}|{ip_address}|{fp}"
     return hashlib.md5(device_info.encode()).hexdigest()
 
@@ -341,6 +341,7 @@ def mark_attendance():
             flash("An error occurred while marking attendance. Please try again.", "error")
     
     return redirect(url_for('dashboard'))
+
 @app.route('/attendance_history')
 def attendance_history():
     if 'user_id' not in session:
@@ -371,6 +372,7 @@ def not_found_error(error):
 
 def create_app():
     with app.app_context():
+        fingerprint.init_app(app)  # Initialize fingerprint
         check_database_status()
         # Ensure collections exist
         if 'devices' not in mongo.db.list_collection_names():
